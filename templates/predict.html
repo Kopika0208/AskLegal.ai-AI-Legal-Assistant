@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AskLegal.ai - Judgment Predictor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    body { font-family: 'Space Mono', monospace; }
+    html, body { overflow-x: hidden; margin: 0; padding: 0; box-sizing: border-box; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 h-screen">
+
+  <div class="flex h-full">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col">
+      <div class="p-4 font-bold text-xl flex items-center space-x-2">
+        <span>⚖️</span>
+        <span>AskLegal.ai</span>
+      </div>
+      <div class="p-2">
+        <input type="text" placeholder="Search" class="w-full p-2 border rounded-lg text-sm focus:outline-none focus:ring"/>
+      </div>
+      <nav class="flex-1 overflow-y-auto">
+        <ul class="space-y-2 p-2 text-sm" id="chat-list">
+          {% for chat in chat_list | reverse %}
+          <li>
+            <button 
+              class="block w-full text-left p-2 rounded hover:bg-gray-100 truncate" 
+              onclick="window.location.href='/?chat={{ chat.name }}'" 
+              title="{{ chat.title }}">
+              {{ chat.title }}
+            </button>
+          </li>
+          {% endfor %}
+        </ul>
+      </nav>
+      <div class="p-2">
+        <button id="new-chat-btn" class="w-full bg-black text-white p-2 rounded-lg hover:bg-gray-800 text-sm">New chat</button>
+      </div>
+    </aside>
+
+    <!-- Main area -->
+    <main class="flex-1 flex flex-col">
+      <header class="p-4 flex justify-between items-center bg-gray-50">
+        <div class="flex space-x-4">
+          <a href="/"><button class="text-gray-500 hover:text-black">Chat</button></a>
+          <a href="/predict"><button class="font-semibold">Predict</button></a>
+          <a href="/generate"><button class="text-gray-500 hover:text-black">Generate</button></a>
+        </div>
+      </header>
+
+      <div class="flex-1 p-6 space-y-6 overflow-y-auto max-w-3xl mx-auto">
+        <div class="bg-white rounded-lg shadow p-6">
+          <form id="predict-form" enctype="multipart/form-data">
+            <label class="block mb-2 font-semibold">Upload Legal Document (PDF, DOCX, or Image)</label>
+            <input type="file" name="file" id="file-upload" class="block w-full border border-gray-300 rounded p-2 mb-4" required/>
+            <input type="hidden" name="file_type" id="file-type" value=""/>
+            <textarea id="case-details" rows="10" placeholder="Extracted file content will appear here..." class="w-full border border-gray-300 rounded p-2 focus:outline-none focus:ring" readonly></textarea>
+            <div class="text-center mt-4">
+              <button type="submit" class="bg-black text-white px-6 py-2 rounded-lg hover:bg-gray-800">Analyze Case</button>
+            </div>
+          </form>
+        </div>
+
+        <div id="verdict-section" class="hidden bg-white rounded-lg shadow p-6">
+          <h2 class="text-lg font-semibold mb-2">Predicted Verdict and Analysis</h2>
+          <div id="verdict-result" class="prose prose-sm text-gray-700"></div>
+        </div>
+
+        <div id="error-msg" class="hidden text-red-500 text-sm"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Loading Spinner Overlay -->
+  <div id="loading-indicator" class="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center hidden">
+    <div class="animate-spin rounded-full h-12 w-12 border-t-4 border-white border-opacity-60"></div>
+  </div>
+
+<script>
+  lucide.createIcons();
+
+  document.getElementById('file-upload').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      let type = '';
+      if (ext === 'pdf') type = 'pdf';
+      else if (ext === 'docx') type = 'docx';
+      else if (['png', 'jpg', 'jpeg'].includes(ext)) type = 'image';
+      else type = '';
+
+      if (!type) {
+        alert("Unsupported file type.");
+        e.target.value = '';
+        return;
+      }
+      document.getElementById('file-type').value = type;
+    }
+  });
+
+  document.getElementById('predict-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const formData = new FormData(e.target);
+    const file = formData.get('file');
+    if (!file || !formData.get('file_type')) {
+      alert("Please upload a valid file.");
+      return;
+    }
+
+    // Show spinner
+    document.getElementById('loading-indicator').classList.remove('hidden');
+
+    try {
+      const response = await fetch('/predict', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        document.getElementById('error-msg').innerText = data.error;
+        document.getElementById('error-msg').classList.remove('hidden');
+      } else {
+        document.getElementById('error-msg').classList.add('hidden');
+        document.getElementById('case-details').value = data.text || "(No text extracted)";
+        const resultEl = document.getElementById('verdict-result');
+        resultEl.innerHTML = marked.parse(`**Verdict:** ${data.result.verdict}\n\n${data.result.analysis}`);
+        document.getElementById('verdict-section').classList.remove('hidden');
+      }
+
+    } catch (err) {
+      document.getElementById('error-msg').innerText = 'Error analyzing case.';
+      document.getElementById('error-msg').classList.remove('hidden');
+    } finally {
+      // Hide spinner
+      document.getElementById('loading-indicator').classList.add('hidden');
+    }
+  });
+
+  document.getElementById('predict-form').addEventListener('keydown', (e) => {
+    if ((e.key === ' ' || e.key === 'Enter') && e.target.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+    }
+  });
+
+  document.getElementById('new-chat-btn').addEventListener('click', async () => {
+    window.location.href = '/';
+  });
+</script>
+
+</body>
+</html>

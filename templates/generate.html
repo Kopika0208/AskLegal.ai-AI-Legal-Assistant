@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AskLegal.ai - Document Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body { font-family: 'Space Mono', monospace; }
+    html, body { overflow-x: hidden; margin: 0; padding: 0; box-sizing: border-box; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 h-screen">
+  <div class="flex h-full">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col">
+      <div class="p-4 font-bold text-xl flex items-center space-x-2">
+        <span>⚖️</span>
+        <span>AskLegal.ai</span>
+      </div>
+      <div class="p-2">
+        <input type="text" placeholder="Search" class="w-full p-2 border rounded-lg text-sm focus:outline-none focus:ring"/>
+      </div>
+      <nav class="flex-1 overflow-y-auto">
+        <ul class="space-y-2 p-2 text-sm" id="chat-list">
+          {% for chat in chat_list | reverse %}
+          <li>
+            <button 
+              class="block w-full text-left p-2 rounded hover:bg-gray-100 truncate" 
+              onclick="window.location.href='/?chat={{ chat.name }}'" 
+              title="{{ chat.title }}">
+              {{ chat.title }}
+            </button>
+          </li>
+          {% endfor %}
+        </ul>
+      </nav>
+      
+      <div class="p-2">
+        <button id="new-chat-btn" class="w-full bg-black text-white p-2 rounded-lg hover:bg-gray-800 text-sm">New chat</button>
+      </div>
+    </aside>
+
+    <!-- Main area -->
+    <main class="flex-1 flex flex-col">
+      <header class="p-4 flex justify-between items-center bg-gray-50">
+        <div class="flex space-x-4">
+          <a href="/"><button class="text-gray-500 hover:text-black">Chat</button></a>
+          <a href="/predict"><button class="text-gray-500 hover:text-black">Predict</button></a>
+          <a href="/generate"><button class="font-semibold">Generate</button></a>
+        </div>
+      </header>
+
+      <div class="flex-1 p-6 space-y-6 overflow-y-auto max-w-3xl mx-auto">
+        <div class="bg-white rounded-lg shadow p-6">
+          <h1 class="text-lg font-semibold mb-4">📃 Legal Document Generator</h1>
+          <form id="generate-form">
+            <label for="doc-prompt" class="block mb-2 font-medium">Enter document request (e.g., "Bail application for Kumar")</label>
+            <input 
+              type="text"
+              id="doc-prompt"
+              name="doc_prompt"
+              placeholder="Type your request..."
+              class="w-full border border-gray-300 rounded p-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+            <div class="text-center">
+              <button type="submit" class="bg-black text-white px-6 py-2 rounded-xl hover:bg-gray-800">
+                Generate Document
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div id="download-section" class="hidden bg-white rounded-lg shadow p-6 text-center">
+          <h2 class="text-lg font-semibold mb-2">✅ Your document is ready!</h2>
+          <a id="download-link" href="#" class="inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+            Download Document
+          </a>
+        </div>
+
+        <div id="error-msg" class="hidden text-red-500 text-sm"></div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    document.getElementById('generate-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const prompt = document.getElementById('doc-prompt').value.trim();
+      if (!prompt) {
+        alert("Please enter a document request.");
+        return;
+      }
+
+      const response = await fetch('/generate_document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ doc_prompt: prompt })
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        document.getElementById('error-msg').innerText = data.error;
+        document.getElementById('error-msg').classList.remove('hidden');
+        document.getElementById('download-section').classList.add('hidden');
+        return;
+      }
+
+      document.getElementById('error-msg').classList.add('hidden');
+      document.getElementById('download-link').href = data.download_url;
+      document.getElementById('download-link').setAttribute('download', data.file_name);
+      document.getElementById('download-section').classList.remove('hidden');
+    });
+
+    document.getElementById('new-chat-btn').addEventListener('click', async () => {
+      window.location.href = '/';
+    });
+  </script>
+</body>
+</html>
