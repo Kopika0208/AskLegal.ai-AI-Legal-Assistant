@@ -1,1 +1,1 @@
-# AskLegal.ai---AI-Legal-Assistant
+# AskLegal.ai-AI-Legal-Assistant
