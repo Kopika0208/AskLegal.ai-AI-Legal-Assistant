@@ -26,34 +26,17 @@
       content: '';
       animation: blink-dots 1.5s steps(3, end) infinite;
     }
-    #main-content {
-      display: flex;
-      flex-direction: column;
-      height: calc(100vh - 56px); /* Subtract header height */
-    }
-    #chat-container {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-    #chat-window {
-      flex: 1;
-      overflow-y: auto;
-      padding: 1rem;
-      display: flex;
-      flex-direction: column;
-    }
-    #welcome-cards {
-      margin-top: auto;
-      margin-bottom: 1rem;
+    @media (max-width: 768px) {
+      .no-hover:hover {
+        background-color: inherit !important;
+      }
     }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900 h-screen">
-  <div class="flex h-full">
+  <div class="flex h-full relative">
     <!-- Sidebar -->
-    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col">
+    <aside id="sidebar" class="w-64 bg-white border-r border-gray-200 flex flex-col absolute md:relative z-20 h-full transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out">
       <div class="p-4 font-bold text-xl flex items-center space-x-2">
         <span>⚖️</span>
         <span>AskLegal.ai</span>
@@ -66,7 +49,7 @@
           {% for chat in chat_list %}
           <li>
             <button 
-              class="block w-full text-left p-2 rounded hover:bg-gray-100 truncate" 
+              class="block w-full text-left p-2 rounded hover:bg-gray-100 truncate no-hover" 
               onclick="loadChat('{{ chat.name }}')" 
               title="{{ chat.title }}">
               {{ chat.title }}
@@ -75,10 +58,20 @@
           {% endfor %}
         </ul>
       </nav>
-      <div class="p-2">
+      <div class="p-2 hidden md:block">
         <button id="new-chat-btn" class="w-full bg-black text-white p-2 rounded-lg hover:bg-gray-800 text-sm">New chat</button>
       </div>
     </aside>
+
+    <!-- Sidebar Toggle Button -->
+    <button id="sidebar-toggle" class="fixed bottom-16 left-4 z-30 bg-white border border-gray-300 rounded-full p-1 shadow md:hidden">
+      <i data-lucide="menu" id="toggle-icon" class="w-5 h-5"></i>
+    </button>
+
+    <!-- Floating New Chat Button for small screens -->
+    <button id="floating-new-chat" class="fixed bottom-16 right-4 z-30 bg-black text-white p-3 rounded-full shadow md:hidden">
+      + New Chat
+    </button>
 
     <!-- Main content -->
     <main class="flex-1 flex flex-col" id="main-content">
@@ -90,59 +83,69 @@
         </div>
       </header>
 
-      <div id="chat-container">
-        <div id="chat-window">
+      <div id="chat-container" class="flex-1 overflow-hidden flex flex-col">
+        <div id="chat-window" class="flex-1 overflow-y-auto p-4 flex flex-col">
+          <div id="welcome-cards-wrapper" class="flex-1 flex flex-col items-center justify-center">
           <div id="welcome-cards" class="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
-            <div class="bg-blue-200 p-4 rounded-3xl shadow-lg text-center cursor-pointer hover:bg-blue-300 transition"
-                 onclick="window.location.href='/'">
+            <div class="bg-blue-200 p-4 rounded-3xl shadow-lg text-center cursor-pointer transition md:hover:bg-blue-300" onclick="window.location.href='/'">
               <div class="text-3xl">🤖</div>
               <h2 class="font-semibold mt-2">Start with a conversation</h2>
-              <p class="text-sm text-gray-600 mt-1">
-                Ask any legal question, create or upload documents, work with them and find paragraphs to adjust.
-              </p>
+              <p class="text-sm text-gray-600 mt-1">Ask any legal question, create or upload documents, work with them and find paragraphs to adjust.</p>
             </div>
-        
-            <div class="bg-yellow-200 p-4 rounded-3xl shadow-lg text-center cursor-pointer hover:bg-yellow-300 transition"
-                 onclick="window.location.href='/predict'">
+            <div class="bg-yellow-200 p-4 rounded-3xl shadow-lg text-center cursor-pointer transition md:hover:bg-yellow-300" onclick="window.location.href='/predict'">
               <div class="text-3xl">📂</div>
               <h2 class="font-semibold mt-2">Judgment Prediction</h2>
-              <p class="text-sm text-gray-600 mt-1">
-                Instantly predict court verdicts on legal cases using AI-powered analysis of case details and legal precedents.
-              </p>
+              <p class="text-sm text-gray-600 mt-1">Predict verdicts on legal cases using AI analysis of case details and precedents.</p>
             </div>
-        
-            <div class="bg-purple-200 p-4 rounded-3xl shadow-lg text-center cursor-pointer hover:bg-purple-300 transition"
-                 onclick="window.location.href='/generate'">
+            <div class="bg-purple-200 p-4 rounded-3xl shadow-lg text-center cursor-pointer transition md:hover:bg-purple-300" onclick="window.location.href='/generate'">
               <div class="text-3xl">📚</div>
               <h2 class="font-semibold mt-2">Generate Legal Documents</h2>
-              <p class="text-sm text-gray-600 mt-1">
-                Automatically draft accurate legal documents tailored to your case using AI-driven templates and context analysis.
-              </p>
+              <p class="text-sm text-gray-600 mt-1">Automatically draft legal documents using AI-driven templates and context.</p>
             </div>
           </div>
+          </div>
         </div>
-      </div>
-
-      <div class="flex items-center p-4 bg-gray-50">
-        <input 
-          type="text" 
-          id="chat-input"
-          placeholder="Ask Legal.ai anything ..." 
-          class="flex-1 border border-gray-300 rounded-tl-lg rounded-bl-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <button 
-          id="send-btn" 
-          class="bg-black hover:bg-gray-900 text-white p-3 w-10 h-10 rounded-tr-lg rounded-br-lg"
-        >
-          <i data-lucide="send" class="w-4 h-4"></i>
-        </button>
+        <div class="flex items-center p-4 bg-gray-50">
+          <input 
+            type="text" 
+            id="chat-input"
+            placeholder="Ask Legal.ai anything ..." 
+            class="flex-1 border border-gray-300 rounded-tl-lg rounded-bl-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button 
+            id="send-btn" 
+            class="bg-black hover:bg-gray-900 text-white p-3 w-10 h-10 rounded-tr-lg rounded-br-lg"
+          >
+            <i data-lucide="send" class="w-4 h-4"></i>
+          </button>
+        </div>
       </div>
     </main>
   </div>
 
   <script>
     lucide.createIcons();
-    let chatName = "";
+
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.getElementById('sidebar-toggle');
+    const toggleIcon = document.getElementById('toggle-icon');
+    let sidebarOpen = false;
+    
+
+    toggleBtn.addEventListener('click', () => {
+      sidebarOpen = !sidebarOpen;
+      sidebar.classList.toggle('-translate-x-full');
+      toggleIcon.setAttribute('data-lucide', sidebarOpen ? 'menu' : 'menu');
+      lucide.createIcons();
+    });
+
+    document.getElementById('floating-new-chat').addEventListener('click', async () => {
+      const res = await fetch('/new_chat', { method: 'POST' });
+      const data = await res.json();
+      chatName = data.chat_name;
+      await refreshChatList();
+      document.getElementById('chat-window').innerHTML = '<p class="text-gray-400 text-center">New chat</p>';
+    });
 
     async function loadChat(name) {
       chatName = name;
@@ -189,7 +192,7 @@
         await refreshChatList();
       }
 
-      const welcome = document.getElementById('welcome-cards');
+      const welcome = document.getElementById('welcome-cards-wrapper');
       if (welcome) welcome.remove();
 
       renderChatBubble(userText, 'user');

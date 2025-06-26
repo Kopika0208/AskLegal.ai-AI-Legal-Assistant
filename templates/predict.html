@@ -12,14 +12,16 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     body { font-family: 'Space Mono', monospace; }
-    html, body { overflow-x: hidden; margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { overflow-x: hidden; margin: 0; padding: 0; height: 100%; }
+    @media (max-width: 768px) {
+      .no-hover:hover { background-color: inherit !important; }
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900 h-screen">
-
-  <div class="flex h-full">
+  <div class="flex h-full relative">
     <!-- Sidebar -->
-    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col">
+    <aside id="sidebar" class="w-64 bg-white border-r border-gray-200 flex flex-col absolute md:relative z-20 h-full transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out">
       <div class="p-4 font-bold text-xl flex items-center space-x-2">
         <span>⚖️</span>
         <span>AskLegal.ai</span>
@@ -32,7 +34,7 @@
           {% for chat in chat_list | reverse %}
           <li>
             <button 
-              class="block w-full text-left p-2 rounded hover:bg-gray-100 truncate" 
+              class="block w-full text-left p-2 rounded hover:bg-gray-100 truncate no-hover" 
               onclick="window.location.href='/?chat={{ chat.name }}'" 
               title="{{ chat.title }}">
               {{ chat.title }}
@@ -41,10 +43,20 @@
           {% endfor %}
         </ul>
       </nav>
-      <div class="p-2">
+      <div class="p-2 hidden md:block">
         <button id="new-chat-btn" class="w-full bg-black text-white p-2 rounded-lg hover:bg-gray-800 text-sm">New chat</button>
       </div>
     </aside>
+
+    <!-- Sidebar Toggle Button -->
+    <button id="sidebar-toggle" class="fixed bottom-4 left-4 z-30 bg-white border border-gray-300 rounded-full p-1 shadow md:hidden">
+      <i data-lucide="menu" id="toggle-icon" class="w-5 h-5"></i>
+    </button>
+
+    <!-- Floating New Chat Button for small screens -->
+    <button id="floating-new-chat" class="fixed bottom-4 right-4 z-30 bg-black text-white p-3 rounded-full shadow md:hidden">
+      + New Chat
+    </button>
 
     <!-- Main area -->
     <main class="flex-1 flex flex-col">
@@ -84,80 +96,87 @@
     <div class="animate-spin rounded-full h-12 w-12 border-t-4 border-white border-opacity-60"></div>
   </div>
 
-<script>
-  lucide.createIcons();
+  <script>
+    lucide.createIcons();
 
-  document.getElementById('file-upload').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const ext = file.name.split('.').pop().toLowerCase();
-      let type = '';
-      if (ext === 'pdf') type = 'pdf';
-      else if (ext === 'docx') type = 'docx';
-      else if (['png', 'jpg', 'jpeg'].includes(ext)) type = 'image';
-      else type = '';
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.getElementById('sidebar-toggle');
+    const toggleIcon = document.getElementById('toggle-icon');
+    let sidebarOpen = false;
 
-      if (!type) {
-        alert("Unsupported file type.");
-        e.target.value = '';
+    toggleBtn.addEventListener('click', () => {
+      sidebarOpen = !sidebarOpen;
+      sidebar.classList.toggle('-translate-x-full');
+      toggleIcon.setAttribute('data-lucide', sidebarOpen ? 'menu' : 'menu');
+      lucide.createIcons();
+    });
+
+    document.getElementById('floating-new-chat').addEventListener('click', async () => {
+      const res = await fetch('/new_chat', { method: 'POST' });
+      const data = await res.json();
+      window.location.href = '/?chat=' + encodeURIComponent(data.chat_name);
+    });
+
+    document.getElementById('new-chat-btn').addEventListener('click', async () => {
+      const res = await fetch('/new_chat', { method: 'POST' });
+      const data = await res.json();
+      window.location.href = '/?chat=' + encodeURIComponent(data.chat_name);
+    });
+
+    document.getElementById('file-upload').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const ext = file.name.split('.').pop().toLowerCase();
+        let type = '';
+        if (ext === 'pdf') type = 'pdf';
+        else if (ext === 'docx') type = 'docx';
+        else if (["png", "jpg", "jpeg"].includes(ext)) type = 'image';
+        else type = '';
+
+        if (!type) {
+          alert("Unsupported file type.");
+          e.target.value = '';
+          return;
+        }
+        document.getElementById('file-type').value = type;
+      }
+    });
+
+    document.getElementById('predict-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const formData = new FormData(e.target);
+      const file = formData.get('file');
+      if (!file || !formData.get('file_type')) {
+        alert("Please upload a valid file.");
         return;
       }
-      document.getElementById('file-type').value = type;
-    }
-  });
 
-  document.getElementById('predict-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+      document.getElementById('loading-indicator').classList.remove('hidden');
 
-    const formData = new FormData(e.target);
-    const file = formData.get('file');
-    if (!file || !formData.get('file_type')) {
-      alert("Please upload a valid file.");
-      return;
-    }
+      try {
+        const response = await fetch('/predict', { method: 'POST', body: formData });
+        const data = await response.json();
 
-    // Show spinner
-    document.getElementById('loading-indicator').classList.remove('hidden');
+        if (data.error) {
+          document.getElementById('error-msg').innerText = data.error;
+          document.getElementById('error-msg').classList.remove('hidden');
+        } else {
+          document.getElementById('error-msg').classList.add('hidden');
+          document.getElementById('case-details').value = data.text || "(No text extracted)";
+          const resultEl = document.getElementById('verdict-result');
+          resultEl.innerHTML = marked.parse(`**Verdict:** ${data.result.verdict}\n\n${data.result.analysis}`);
+          document.getElementById('verdict-section').classList.remove('hidden');
+        }
 
-    try {
-      const response = await fetch('/predict', {
-        method: 'POST',
-        body: formData
-      });
-
-      const data = await response.json();
-
-      if (data.error) {
-        document.getElementById('error-msg').innerText = data.error;
+      } catch (err) {
+        document.getElementById('error-msg').innerText = 'Error analyzing case.';
         document.getElementById('error-msg').classList.remove('hidden');
-      } else {
-        document.getElementById('error-msg').classList.add('hidden');
-        document.getElementById('case-details').value = data.text || "(No text extracted)";
-        const resultEl = document.getElementById('verdict-result');
-        resultEl.innerHTML = marked.parse(`**Verdict:** ${data.result.verdict}\n\n${data.result.analysis}`);
-        document.getElementById('verdict-section').classList.remove('hidden');
+      } finally {
+        document.getElementById('loading-indicator').classList.add('hidden');
       }
-
-    } catch (err) {
-      document.getElementById('error-msg').innerText = 'Error analyzing case.';
-      document.getElementById('error-msg').classList.remove('hidden');
-    } finally {
-      // Hide spinner
-      document.getElementById('loading-indicator').classList.add('hidden');
-    }
-  });
-
-  document.getElementById('predict-form').addEventListener('keydown', (e) => {
-    if ((e.key === ' ' || e.key === 'Enter') && e.target.tagName !== 'TEXTAREA') {
-      e.preventDefault();
-    }
-  });
-
-  document.getElementById('new-chat-btn').addEventListener('click', async () => {
-    window.location.href = '/';
-  });
-</script>
-
+    });
+  </script>
 </body>
 </html>
