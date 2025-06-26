@@ -10,7 +10,7 @@ An AI assistant to help with legal queries, with an RAG model trained on the Ind
 
 ## Technologies Used
 
-- 🤖 Mistral AI's `Mixtral-8x22B-Instruct-v0.1` for natural language understanding and response generation.
+- 🤖 Gemini's gemini-2.0-flash for natural language understanding and response generation.
 - ⚙️ `InLegalBERT` for Indian Penal Code text embeddings.
 - 🧩 **Streamlit** for the front-end interface.
 - 📅 **Redis** for quick, indexed access to knowledge base entries.
